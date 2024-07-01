@@ -33,9 +33,9 @@ export const GET = async (req: Request) => {
     ).toString();
 
     const payload: ActionGetResponse = {
-      title: "Actions Example - Transfer Native SOL",
+      title: "Donate SOL",
       icon: new URL("/smb.png", requestUrl.origin).toString(),
-      description: "Transfer SOL to another Solana wallet",
+      description: "Donate SOL to support my mildly technical content on Solana & Blockchains",
       label: "Transfer", // this value will be ignored since `links.actions` exists
       links: {
         actions: [
@@ -127,6 +127,13 @@ export const POST = async (req: Request) => {
     transaction.feePayer = account;
 
     transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+    transaction
+      .serialize({
+        requireAllSignatures: false,
+        verifySignatures: true,
+      })
+      .toString("base64");
 
     const payload: ActionPostResponse = await createPostResponse({
       fields: {
