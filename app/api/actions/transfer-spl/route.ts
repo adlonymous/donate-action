@@ -6,17 +6,21 @@ import {
   ActionPostRequest,
 } from "@solana/actions";
 import {
+  Account,
   Authorized,
   clusterApiUrl,
   Connection,
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
+  Signer,
   StakeProgram,
   SystemProgram,
   Transaction,
 } from "@solana/web3.js";
+import * as splToken from "@solana/spl-token";
 import { DEFAULT_SOL_ADDRESS, DEFAULT_SOL_AMOUNT } from "./const";
+const SOLANA_MAINNET_USDC_PUBKEY = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 export const GET = async (req: Request) => {
   try {
@@ -24,36 +28,36 @@ export const GET = async (req: Request) => {
     const { toPubkey } = validatedQueryParams(requestUrl);
 
     const baseHref = new URL(
-      `/api/actions/transfer-sol?to=${toPubkey.toBase58()}`,
+      `/api/actions/transfer-usdc-spl?to=${toPubkey.toBase58()}`,
       requestUrl.origin
     ).toString();
 
     const payload: ActionGetResponse = {
-      title: "Donate SOL",
+      title: "Actions Example - Transfer USDC SPL",
       icon: new URL("/smb.png", requestUrl.origin).toString(),
-      description: "Donate SOL to support my mildly technical content on Solana & Blockchains",
+      description: "Transfer USDC SPL to another Solana wallet",
       label: "Transfer", // this value will be ignored since `links.actions` exists
       links: {
         actions: [
           {
-            label: "Send 0.1 SOL", // button text
-            href: `${baseHref}&amount=${"0.1"}`,
-          },
-          {
-            label: "Send 0.5 SOL", // button text
-            href: `${baseHref}&amount=${"0.5"}`,
-          },
-          {
-            label: "Send 1 SOL", // button text
+            label: "Send 10 USDC", // button text
             href: `${baseHref}&amount=${"1"}`,
           },
           {
-            label: "Send SOL", // button text
+            label: "Send 50 USDC", // button text
+            href: `${baseHref}&amount=${"5"}`,
+          },
+          {
+            label: "Send 100 USDC", // button text
+            href: `${baseHref}&amount=${"10"}`,
+          },
+          {
+            label: "Send USDC", // button text
             href: `${baseHref}&amount={amount}`, // this href will have a text input
             parameters: [
               {
                 name: "amount", // parameter name in the `href` above
-                label: "Enter the amount of SOL to send", // placeholder of the text input
+                label: "Enter the amount of USDC to send", // placeholder of the text input
                 required: true,
               },
             ],
@@ -98,43 +102,88 @@ export const POST = async (req: Request) => {
       });
     }
 
-    const connection = new Connection(process.env.SOLANA_RPC! || clusterApiUrl("mainnet-beta"));
+    const connection = new Connection(process.env.SOLANA_RPC! || clusterApiUrl("devnet"));
+    const decimals = 6; // In the example, we use 6 decimals for USDC
+    const mintAddress = new PublicKey(SOLANA_MAINNET_USDC_PUBKEY); // replace this with any SPL token mint address
+    const fromWallet = account;
 
-    // ensure the receiving account will be rent exempt
-    const minimumBalance = await connection.getMinimumBalanceForRentExemption(
-      0 // note: simple accounts that just store native SOL have `0` bytes of data
+    // converting value to fractional units
+
+    let transferAmount = parseFloat(amount.toFixed(decimals));
+    transferAmount = transferAmount * Math.pow(10, decimals);
+
+    const fromTokenAccount = await splToken.getAssociatedTokenAddress(
+      mintAddress,
+      account,
+      false,
+      splToken.TOKEN_PROGRAM_ID,
+      splToken.ASSOCIATED_TOKEN_PROGRAM_ID
     );
-    if (amount * LAMPORTS_PER_SOL < minimumBalance) {
-      throw `account may not be rent exempt: ${toPubkey.toBase58()}`;
+
+    let oncurve = true;
+    if (PublicKey.isOnCurve(account.toString())) {
+      oncurve = false;
     }
+    console.log("oncurve:", oncurve);
+
+    let toTokenAccount = await splToken.getAssociatedTokenAddress(
+      mintAddress,
+      account,
+      oncurve,
+      splToken.TOKEN_PROGRAM_ID,
+      splToken.ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+
+    let createATA: boolean = Boolean(false);
+    await splToken
+      .getAccount(connection, toTokenAccount, "confirmed", splToken.TOKEN_PROGRAM_ID)
+      .then(function (response) {
+        createATA = false;
+      })
+      .catch(function (error) {
+        if (error.name == "TokenAccountNotFoundError") {
+          createATA = true;
+        } else {
+          return;
+        }
+      });
+
+    let instructions = [];
+
+    if (createATA === true) {
+      let createATAiX = splToken.createAssociatedTokenAccountInstruction(
+        account,
+        toTokenAccount,
+        toPubkey,
+        mintAddress,
+        splToken.TOKEN_PROGRAM_ID,
+        splToken.ASSOCIATED_TOKEN_PROGRAM_ID
+      );
+      instructions.push(createATAiX);
+    }
+
+    let transferInstruction = splToken.createTransferInstruction(
+      fromTokenAccount,
+      toTokenAccount,
+      account,
+      transferAmount
+    );
+    instructions.push(transferInstruction);
 
     const transaction = new Transaction();
     transaction.feePayer = account;
 
-    transaction.add(
-      SystemProgram.transfer({
-        fromPubkey: account,
-        toPubkey: toPubkey,
-        lamports: amount * LAMPORTS_PER_SOL,
-      })
-    );
+    transaction.instructions = instructions;
 
     // set the end user as the fee payer
     transaction.feePayer = account;
 
     transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
 
-    transaction
-      .serialize({
-        requireAllSignatures: false,
-        verifySignatures: true,
-      })
-      .toString("base64");
-
     const payload: ActionPostResponse = await createPostResponse({
       fields: {
         transaction,
-        message: `Send ${amount} SOL to ${toPubkey.toBase58()}`,
+        message: `Send ${amount} USDC to ${toPubkey.toBase58()}`,
       },
       // note: no additional signers are needed
       // signers: [],
