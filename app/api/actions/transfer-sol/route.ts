@@ -76,8 +76,6 @@ export const GET = async (req: Request) => {
   }
 };
 
-// DO NOT FORGET TO INCLUDE THE `OPTIONS` HTTP METHOD
-// THIS WILL ENSURE CORS WORKS FOR BLINKS
 export const OPTIONS = GET;
 
 export const POST = async (req: Request) => {

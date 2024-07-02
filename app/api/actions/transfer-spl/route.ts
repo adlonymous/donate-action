@@ -5,19 +5,7 @@ import {
   ActionGetResponse,
   ActionPostRequest,
 } from "@solana/actions";
-import {
-  Account,
-  Authorized,
-  clusterApiUrl,
-  Connection,
-  Keypair,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  Signer,
-  StakeProgram,
-  SystemProgram,
-  Transaction,
-} from "@solana/web3.js";
+import { clusterApiUrl, Connection, PublicKey, Transaction } from "@solana/web3.js";
 import * as splToken from "@solana/spl-token";
 import { DEFAULT_SOL_ADDRESS, DEFAULT_SOL_AMOUNT } from "./const";
 const SOLANA_MAINNET_USDC_PUBKEY = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -102,14 +90,14 @@ export const POST = async (req: Request) => {
       });
     }
 
-    const connection = new Connection(process.env.SOLANA_RPC! || clusterApiUrl("devnet"));
-    const decimals = 6; // In the example, we use 6 decimals for USDC
+    const connection = new Connection(clusterApiUrl("mainnet-beta"));
+    const decimals = 6; // In the example, we use 6 decimals for USDC, but you can use any SPL token
     const mintAddress = new PublicKey(SOLANA_MAINNET_USDC_PUBKEY); // replace this with any SPL token mint address
-    const fromWallet = account;
 
     // converting value to fractional units
 
-    let transferAmount = parseFloat(amount.toFixed(decimals));
+    let transferAmount: any = parseFloat(amount.toString());
+    transferAmount = transferAmount.toFixed(decimals);
     transferAmount = transferAmount * Math.pow(10, decimals);
 
     const fromTokenAccount = await splToken.getAssociatedTokenAddress(
@@ -120,37 +108,19 @@ export const POST = async (req: Request) => {
       splToken.ASSOCIATED_TOKEN_PROGRAM_ID
     );
 
-    let oncurve = true;
-    if (PublicKey.isOnCurve(account.toString())) {
-      oncurve = false;
-    }
-    console.log("oncurve:", oncurve);
-
     let toTokenAccount = await splToken.getAssociatedTokenAddress(
       mintAddress,
       account,
-      oncurve,
+      true,
       splToken.TOKEN_PROGRAM_ID,
       splToken.ASSOCIATED_TOKEN_PROGRAM_ID
     );
 
-    let createATA: boolean = Boolean(false);
-    await splToken
-      .getAccount(connection, toTokenAccount, "confirmed", splToken.TOKEN_PROGRAM_ID)
-      .then(function (response) {
-        createATA = false;
-      })
-      .catch(function (error) {
-        if (error.name == "TokenAccountNotFoundError") {
-          createATA = true;
-        } else {
-          return;
-        }
-      });
+    const ifexists = await connection.getAccountInfo(toTokenAccount);
 
     let instructions = [];
 
-    if (createATA === true) {
+    if (!ifexists || !ifexists.data) {
       let createATAiX = splToken.createAssociatedTokenAccountInstruction(
         account,
         toTokenAccount,
@@ -173,7 +143,7 @@ export const POST = async (req: Request) => {
     const transaction = new Transaction();
     transaction.feePayer = account;
 
-    transaction.instructions = instructions;
+    transaction.add(...instructions);
 
     // set the end user as the fee payer
     transaction.feePayer = account;
