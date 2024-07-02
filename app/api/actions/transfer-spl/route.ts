@@ -110,7 +110,7 @@ export const POST = async (req: Request) => {
 
     let toTokenAccount = await splToken.getAssociatedTokenAddress(
       mintAddress,
-      account,
+      toPubkey,
       true,
       splToken.TOKEN_PROGRAM_ID,
       splToken.ASSOCIATED_TOKEN_PROGRAM_ID
