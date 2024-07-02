@@ -16,14 +16,14 @@ export const GET = async (req: Request) => {
     const { toPubkey } = validatedQueryParams(requestUrl);
 
     const baseHref = new URL(
-      `/api/actions/transfer-usdc-spl?to=${toPubkey.toBase58()}`,
+      `/api/actions/transfer-spl?to=${toPubkey.toBase58()}`,
       requestUrl.origin
     ).toString();
 
     const payload: ActionGetResponse = {
-      title: "Actions Example - Transfer USDC SPL",
+      title: "Donate USDC to adlonymous",
       icon: new URL("/smb.png", requestUrl.origin).toString(),
-      description: "Transfer USDC SPL to another Solana wallet",
+      description: `Help me write more easily understandable technical content by donating to ${DEFAULT_SOL_ADDRESS.toBase58()}`,
       label: "Transfer", // this value will be ignored since `links.actions` exists
       links: {
         actions: [
@@ -153,7 +153,7 @@ export const POST = async (req: Request) => {
     const payload: ActionPostResponse = await createPostResponse({
       fields: {
         transaction,
-        message: `Send ${amount} USDC to ${toPubkey.toBase58()}`,
+        message: `Donated ${amount} USDC to ${toPubkey.toBase58()}`,
       },
       // note: no additional signers are needed
       // signers: [],
